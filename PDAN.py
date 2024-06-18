@@ -6,17 +6,51 @@ import os
 import copy
 
 
+
+class TokenSummarizationMHA(nn.Module):
+    def __init__(self, num_tokens, dim=256, num_heads=8, dropout=0.1):
+        super(TokenSummarizationMHA, self).__init__()
+        self.num_tokens = num_tokens
+        self.num_heads = num_heads
+        self.dropout = dropout
+        self.dim = dim
+        self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=num_heads, dropout=dropout, batch_first=True)
+        self.tokens = nn.Parameter(torch.randn(1, self.num_tokens, self.dim) * 0.02)
+
+    def forward(self, inputs):
+        inputs = torch.permute(inputs, (0, 2, 1)) # permute from (dim, T) to (T, dim)
+        bs, hw, d = inputs.shape
+        tokens = self.tokens.expand(bs, -1, -1)
+        attn_output, _ = self.attn(query=tokens, key=inputs, value=inputs)
+        attn_output = attn_output[0:1]
+        return attn_output
+
+
 class PDAN(nn.Module):
-    def __init__(self, num_stages=1, num_layers=5, num_f_maps=512, dim=1024, num_classes=157):
+    def __init__(self, num_stages=1, num_layers=5, num_f_maps=512, dim=1024, num_classes=157, num_summary_tokens=10):
         super(PDAN, self).__init__()
         self.stage1 = SSPDAN(num_layers, num_f_maps, dim, num_classes)
         self.stages = nn.ModuleList([copy.deepcopy(SSPDAN(num_layers, num_f_maps, num_classes, num_classes)) for s in range(num_stages-1)])
+        self.summarization_module = None
+        self.summary = None
+        self.stage1_bottleneck = torch.nn.Conv1d(in_channels=dim, out_channels=num_f_maps, kernel_size=1)
+        if num_summary_tokens:
+            self.summarization_module = TokenSummarizationMHA(num_tokens=num_summary_tokens, dim=num_f_maps, num_heads=1)
+
 
     def forward(self, x, mask):
-        out = self.stage1(x, mask)
+        if self.summarization_module:
+            r_x = self.stage1_bottleneck(x)
+            self.summary = self.summarization_module(r_x)
+            print('summary shape: ', self.summary.shape)
+
+        out = self.stage1(x, mask, self.summary)
         outputs = out.unsqueeze(0)
         for s in self.stages:
-            out = s(out * mask[:, 0:1, :], mask)
+            if self.summarization_module:
+                self.summary = self.summarization_module(out)
+                print('--- summary shape: ', self.summary.shape)
+            out = s(out * mask[:, 0:1, :], mask, self.summary)
             outputs = torch.cat((outputs, out.unsqueeze(0)), dim=0)
         return outputs
 
@@ -27,10 +61,10 @@ class SSPDAN(nn.Module):
         self.layers = nn.ModuleList([copy.deepcopy(PDAN_Block(2 ** i, num_f_maps, num_f_maps)) for i in range(num_layers)])
         self.conv_out = nn.Conv1d(num_f_maps, num_classes, 1)
 
-    def forward(self, x, mask):
+    def forward(self, x, mask, summary=None):
         out = self.conv_1x1(x)
         for layer in self.layers:
-            out = layer(out, mask)
+            out = layer(out, mask, summary)
         out = self.conv_out(out) * mask[:, 0:1, :]
         return out
 
@@ -42,16 +76,18 @@ class PDAN_Block(nn.Module):
         self.conv_1x1 = nn.Conv1d(out_channels, out_channels, 1)
         self.dropout = nn.Dropout()
 
-    def forward(self, x, mask):
-        out = F.relu(self.conv_attention(x))
+    def forward(self, x, mask, summary=None):
+        out = F.relu(self.conv_attention(x, summary))
         out = self.conv_1x1(out)
         out = self.dropout(out)
         return (x + out) * mask[:, 0:1, :]
 
 class DAL(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, dilated=1, groups=1, bias=False):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, dilated=1, groups=1, bias=False,
+                 num_heads_cross_attention=1):
         super(DAL, self).__init__()
         self.out_channels = out_channels
+
         self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
@@ -62,10 +98,13 @@ class DAL(nn.Module):
         self.key_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
         self.query_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
         self.value_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
+
+        self.cross_attention = nn.MultiheadAttention(out_channels, num_heads_cross_attention, bias=bias, batch_first=True)
+
         self.reset_parameters()
 
 
-    def forward(self, x):
+    def forward_initial(self, x):
         batch, channels, time = x.size()
         padded_x = F.pad(x, (self.padding, self.padding))
         q_out = self.query_conv(x)
@@ -85,10 +124,58 @@ class DAL(nn.Module):
         out = torch.einsum('bnctk,bnctk -> bnct', out, v_out).view(batch, -1, time)
         return out
 
+
+    def forward(self, x, summary = None):
+        if summary is None:
+            return self.forward_initial(x)
+        return self.forward_summary(x, summary)
+
+
+    def forward_summary(self, x, summary=None):
+        batch, channels, time = x.size()
+        padded_x = F.pad(x, (self.padding, self.padding))
+
+        kernal_size = 2 * self.dilated + 1
+        #
+        if summary is not None:
+            padded_x = padded_x.unfold(2, kernal_size, self.stride)
+            padded_x = torch.cat((padded_x[:, :, :, 0].unsqueeze(3), padded_x[:, :, :, 0 + self.dilated].unsqueeze(3),
+                               padded_x[:, :, :, 0 + 2 * self.dilated].unsqueeze(3)), dim=3)  # dilated
+            # padded_x: bs, dim, unfold, ks
+            bs, dim, unfold_t, ks = padded_x.shape
+            padded_x = padded_x.view(bs*unfold_t, dim, ks)
+            padded_x = torch.permute(padded_x, (0, 2, 1))
+            summary_expanded = summary.expand(padded_x.shape[0], -1, -1)
+
+            padded_x, _ = self.cross_attention(query=padded_x, key=summary_expanded, value=summary_expanded)
+            padded_x = padded_x.permute((0, 2, 1))
+            k_out = self.key_conv(padded_x)
+            v_out = self.value_conv(padded_x)
+            k_out = k_out.permute((0, 2, 1))
+            v_out = v_out.permute((0, 2, 1))
+            v_out = v_out.reshape(bs, dim, unfold_t, ks).contiguous()
+            k_out = k_out.reshape(bs, dim, unfold_t, ks).contiguous()
+
+        q_out = self.query_conv(x)
+
+        v_out = v_out + self.rel_t
+        k_out = k_out.contiguous().view(batch, self.groups, self.out_channels // self.groups, time, -1)
+        v_out = v_out.contiguous().view(batch, self.groups, self.out_channels // self.groups, time, -1)
+        q_out = q_out.view(batch, self.groups, self.out_channels // self.groups, time, 1)
+        out = q_out * k_out
+        out = F.softmax(out, dim=-1)
+        out = torch.einsum('bnctk,bnctk -> bnct', out, v_out).view(batch, -1, time)
+        return out
+
     def reset_parameters(self):
         init.kaiming_normal(self.key_conv.weight, mode='fan_out')
         init.kaiming_normal(self.value_conv.weight, mode='fan_out')
         init.kaiming_normal(self.query_conv.weight, mode='fan_out')
         init.normal(self.rel_t, 0, 1)
+
+        init.zeros_(self.cross_attention.in_proj_weight)
+        if self.cross_attention.in_proj_bias is not None:
+            init.zeros_(self.cross_attention.in_proj_weights)
+
 
 

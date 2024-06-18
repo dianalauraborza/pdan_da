@@ -19,24 +19,24 @@ def str2bool(v):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-mode', type=str, help='rgb or flow (or joint for eval)')
+parser.add_argument('-mode', type=str, default='rgb', help='rgb or flow (or joint for eval)')
 parser.add_argument('-train', type=str2bool, default='True', help='train or eval')
 parser.add_argument('-comp_info', type=str)
 parser.add_argument('-rgb_model_file', type=str)
 parser.add_argument('-flow_model_file', type=str)
 parser.add_argument('-gpu', type=str, default='4')
 parser.add_argument('-dataset', type=str, default='charades')
-parser.add_argument('-rgb_root', type=str, default='no_root')
+parser.add_argument('-rgb_root', type=str, default='~/mynef/data/stars/user/rdai/PhD_work/cvpr2020/Charades_v1/charades_feat_rgb')
 parser.add_argument('-flow_root', type=str, default='no_root')
 parser.add_argument('-type', type=str, default='original')
 parser.add_argument('-lr', type=str, default='0.1')
 parser.add_argument('-epoch', type=str, default='50')
-parser.add_argument('-model', type=str, default='')
+parser.add_argument('-model', type=str, default='PDAN')
 parser.add_argument('-APtype', type=str, default='wap')
 parser.add_argument('-randomseed', type=str, default='False')
 parser.add_argument('-load_model', type=str, default='False')
-parser.add_argument('-batch_size', type=str, default='False')
-parser.add_argument('-num_channel', type=str, default='False')
+parser.add_argument('-batch_size', type=str, default=6)
+parser.add_argument('-num_channel', type=str, default=128)
 parser.add_argument('-run_mode', type=str, default='False')
 parser.add_argument('-feat', type=str, default='False')
 
@@ -93,7 +93,7 @@ if args.dataset == 'charades':
         train_split = './data/charades.json'
         test_split = './data/charades.json'
     # print('load feature from:', args.rgb_root)
-    rgb_root = '/Path/to/charades_feat_rgb'
+    rgb_root = '/user/dborza/home/mynef/data/stars/user/rdai/PhD_work/cvpr2020/Charades_v1/charades_feat_rgb'
     skeleton_root = '/Path/to/charades_feat_pose'
     flow_root = '/Path/to/charades_feat_flow'
     rgb_of=[rgb_root,flow_root]
@@ -105,9 +105,9 @@ def load_data(train_split, val_split, root):
     print('load data', root)
     if len(train_split) > 0:
         if str(args.feat) == '2d':
-            dataset = Dataset(train_split, 'training', root, batch_size, classes, int(args.pool_step))
+            dataset = Dataset(train_split, 'testing', root, batch_size, classes, int(args.pool_step))
         else:
-            dataset = Dataset(train_split, 'training', root, batch_size, classes)
+            dataset = Dataset(train_split, 'testing', root, batch_size, classes)
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=8,
                                                  pin_memory=True, collate_fn=collate_fn)
         dataloader.root = root
@@ -116,16 +116,19 @@ def load_data(train_split, val_split, root):
         dataset = None
         dataloader = None
 
-    if str(args.feat) == '2d':
-        val_dataset = Dataset(val_split, 'testing', root, batch_size, classes, int(args.pool_step))
-    else:
-        val_dataset = Dataset(val_split, 'testing', root, batch_size, classes)
-    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=True, num_workers=2,
-                                                 pin_memory=True, collate_fn=collate_fn)
-    val_dataloader.root = root
+    # if str(args.feat) == '2d':
+    #     val_dataset = Dataset(val_split, 'testing', root, batch_size, classes, int(args.pool_step))
+    # else:
+    #     val_dataset = Dataset(val_split, 'testing', root, batch_size, classes)
+    # val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=True, num_workers=2,
+    #                                              pin_memory=True, collate_fn=collate_fn)
+    # val_dataloader.root = root
 
-    dataloaders = {'train': dataloader, 'val': val_dataloader}
-    datasets = {'train': dataset, 'val': val_dataset}
+    # dataloaders = {'train': dataloader, 'val': val_dataloader}
+    # datasets = {'train': dataset, 'val': val_dataset}
+
+    dataloaders = {'train': dataloader, 'val': dataloader}
+    datasets = {'train': dataset, 'val': dataloader}
     return dataloaders, datasets
 
 
@@ -158,17 +161,18 @@ def eval_model(model, dataloader, baseline=False):
 
 def run_network(model, data, gpu, epoch=0, baseline=False):
     inputs, mask, labels, other = data
+    print(inputs.shape)
     # wrap them in Variable
-    inputs = Variable(inputs.cuda(gpu))
-    mask = Variable(mask.cuda(gpu))
-    labels = Variable(labels.cuda(gpu))
+    # inputs = Variable(inputs.cuda(gpu))
+    # mask = Variable(mask.cuda(gpu))
+    # labels = Variable(labels.cuda(gpu))
 
     mask_list = torch.sum(mask, 1)
     mask_new = np.zeros((mask.size()[0], classes, mask.size()[1]))
     for i in range(mask.size()[0]):
         mask_new[i, :, :int(mask_list[i])] = np.ones((classes, int(mask_list[i])))
     mask_new = torch.from_numpy(mask_new).float()
-    mask_new = Variable(mask_new.cuda(gpu))
+    # mask_new = Variable(mask_new.cuda(gpu))
 
     inputs = inputs.squeeze(3).squeeze(3)
     #print("inputs",inputs.size())
@@ -176,12 +180,17 @@ def run_network(model, data, gpu, epoch=0, baseline=False):
 
     
     outputs_final = activation
+    print('outputs final ', outputs_final.shape)
 
     #print("outputs_final",outputs_final.size())
     outputs_final = outputs_final[-1]
     #print("outputs_final",outputs_final.size())
     outputs_final = outputs_final.permute(0, 2, 1)  
+    print('inputs ', inputs.shape)
+
+    print('mask ', mask.shape)
     probs_f = F.sigmoid(outputs_final) * mask.unsqueeze(2)
+
     loss_f = F.binary_cross_entropy_with_logits(outputs_final, labels, size_average=False)
     loss_f = torch.sum(loss_f) / torch.sum(mask)  
 
@@ -310,7 +319,7 @@ if __name__ == '__main__':
         pytorch_total_params = sum(p.numel() for p in rgb_model.parameters() if p.requires_grad)
         print('pytorch_total_params', pytorch_total_params)
         print('num_channel:', num_channel, 'input_channnel:', input_channnel,'num_classes:', num_classes)
-        rgb_model.cuda()
+        # rgb_model.cuda()
 
         criterion = nn.NLLLoss(reduce=False)
         lr = float(args.lr)
