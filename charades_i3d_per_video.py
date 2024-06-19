@@ -5,7 +5,6 @@ from torch.utils.data.dataloader import default_collate
 import numpy as np
 import json
 import csv
-# import h5py
 
 import os
 import os.path
@@ -48,6 +47,7 @@ def make_dataset(split_file, split, root, num_classes=157):
                     label[fr, ann[0]] = 1 # binary classification
         dataset.append((vid, label, data[vid]['duration']))
         i += 1
+
     
     return dataset
 

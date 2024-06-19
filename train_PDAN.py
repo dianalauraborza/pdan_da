@@ -2,11 +2,12 @@ from __future__ import division
 import time
 import os
 import argparse
+from collections import OrderedDict
 import sys
-
+import wandb
 import torchvision.models as models
 import torch
-
+import config
 
 
 def str2bool(v):
@@ -32,11 +33,12 @@ parser.add_argument('-type', type=str, default='original')
 parser.add_argument('-lr', type=str, default='0.1')
 parser.add_argument('-epoch', type=str, default='50')
 parser.add_argument('-model', type=str, default='PDAN')
-parser.add_argument('-APtype', type=str, default='wap')
+parser.add_argument('-APtype', type=str, default='map')
 parser.add_argument('-randomseed', type=str, default='False')
-parser.add_argument('-load_model', type=str, default='False')
+parser.add_argument('-load_model', type=str, default='/user/dborza/home/work/PDAN/data/PDAN_Charades_RGB')
 parser.add_argument('-batch_size', type=str, default=6)
 parser.add_argument('-num_channel', type=str, default=128)
+parser.add_argument('-num_summary_tokens', type=int, default=0)
 parser.add_argument('-run_mode', type=str, default='False')
 parser.add_argument('-feat', type=str, default='False')
 
@@ -78,7 +80,7 @@ import math
 
 from apmeter import APMeter
 
-
+best_map = -1
 batch_size = int(args.batch_size)
 
 
@@ -97,7 +99,7 @@ if args.dataset == 'charades':
     skeleton_root = '/Path/to/charades_feat_pose'
     flow_root = '/Path/to/charades_feat_flow'
     rgb_of=[rgb_root,flow_root]
-    classes = 157
+    classes = 177#157
 
 
 def load_data(train_split, val_split, root):
@@ -134,6 +136,7 @@ def load_data(train_split, val_split, root):
 
 # train the model
 def run(models, criterion, num_epochs=50):
+    global best_map
     since = time.time()
 
     for epoch in range(num_epochs):
@@ -144,6 +147,20 @@ def run(models, criterion, num_epochs=50):
         for model, gpu, dataloader, optimizer, sched, model_file in models:
             train_map, train_loss = train_step(model, gpu, optimizer, dataloader['train'], epoch)
             prob_val, val_loss, val_map = val_step(model, gpu, dataloader['val'], epoch)
+            print('---->', train_map, train_map.numpy())
+            wandb.log({
+                'train_map': train_map.numpy(),
+                'train_loss': train_loss,
+                'val_map': val_map.numpy(),
+                'val_loss': val_loss
+            })
+
+            if best_map > val_map:
+                best_map = val_map
+                weights_path = f'./checkpoints/model{epoch}.pth'
+                torch.save(model.state_dict(), weights_path)
+                print(f'Saved weights to {weights_path}')
+
             probs.append(prob_val)
             sched.step(val_loss)
 
@@ -161,34 +178,24 @@ def eval_model(model, dataloader, baseline=False):
 
 def run_network(model, data, gpu, epoch=0, baseline=False):
     inputs, mask, labels, other = data
-    print(inputs.shape)
     # wrap them in Variable
-    # inputs = Variable(inputs.cuda(gpu))
-    # mask = Variable(mask.cuda(gpu))
-    # labels = Variable(labels.cuda(gpu))
+    inputs = Variable(inputs.cuda(gpu))
+    mask = Variable(mask.cuda(gpu))
+    labels = Variable(labels.cuda(gpu))
 
     mask_list = torch.sum(mask, 1)
     mask_new = np.zeros((mask.size()[0], classes, mask.size()[1]))
     for i in range(mask.size()[0]):
         mask_new[i, :, :int(mask_list[i])] = np.ones((classes, int(mask_list[i])))
     mask_new = torch.from_numpy(mask_new).float()
-    # mask_new = Variable(mask_new.cuda(gpu))
+    mask_new = Variable(mask_new.cuda(gpu))
 
     inputs = inputs.squeeze(3).squeeze(3)
-    #print("inputs",inputs.size())
     activation = model(inputs, mask_new)
-
-    
     outputs_final = activation
-    print('outputs final ', outputs_final.shape)
-
-    #print("outputs_final",outputs_final.size())
     outputs_final = outputs_final[-1]
-    #print("outputs_final",outputs_final.size())
     outputs_final = outputs_final.permute(0, 2, 1)  
-    print('inputs ', inputs.shape)
 
-    print('mask ', mask.shape)
     probs_f = F.sigmoid(outputs_final) * mask.unsqueeze(2)
 
     loss_f = F.binary_cross_entropy_with_logits(outputs_final, labels, size_average=False)
@@ -224,9 +231,13 @@ def train_step(model, gpu, optimizer, dataloader, epoch):
     else:
         train_map = 100 * apm.value().mean()
     print('train-map:', train_map)
+
+
     apm.reset()
 
     epoch_loss = tot_loss / num_iter
+
+
 
     return train_map, epoch_loss
 
@@ -259,7 +270,6 @@ def val_step(model, gpu, dataloader, epoch):
 
     epoch_loss = tot_loss / num_iter
 
-
     val_map = torch.sum(100 * apm.value()) / torch.nonzero(100 * apm.value()).size()[0]
     print('val-map:', val_map)
     print(100 * apm.value())
@@ -268,10 +278,32 @@ def val_step(model, gpu, dataloader, epoch):
     return full_probs, epoch_loss, val_map
 
 
+def load_weights_from_pretrained(old_model_path, new_model):
+    loaded_model = torch.load(old_model_path,  map_location=torch.device('cpu'))
+    loaded_state_dict = loaded_model.module.state_dict()
+    new_state_dict = new_model.state_dict()
+
+    for name, param in loaded_state_dict.items():
+        if name in new_state_dict:
+            print('\t --- load ', name)
+            try:
+                new_state_dict[name].copy_(param)
+            except RuntimeError:
+                print(f'failed to load {name}', file=sys.stderr)
+
+    new_model.load_state_dict(new_state_dict)
+
+
 if __name__ == '__main__':
     print(str(args.model))
     print('batch_size:', batch_size)
     print('cuda_avail', torch.cuda.is_available())
+
+
+    wandb.login(key=config.WANDB_KEY)
+
+    config_dict = dict()
+
 
     if args.mode == 'flow':
         print('flow mode', flow_root)
@@ -302,30 +334,45 @@ if __name__ == '__main__':
             num_channel=512
             input_channnel=1024
             num_classes=classes
-            rgb_model = PDAN(stage, block, num_channel, input_channnel, num_classes)
+            rgb_model = PDAN(stage, block, num_channel, input_channnel, num_classes, num_summary_tokens=int(args.num_summary_tokens))
             pytorch_total_params = sum(p.numel() for p in rgb_model.parameters() if p.requires_grad)
             print('pytorch_total_params', pytorch_total_params)
             #exit()
             print ('stage:', stage, 'block:', block, 'num_channel:', num_channel, 'input_channnel:', input_channnel,
                    'num_classes:', num_classes)
 
+        # checkpoint = torch.load(str(args.load_model), map_location=torch.device('cpu'))
 
-        rgb_model=torch.nn.DataParallel(rgb_model)
+        if args.load_model != "False":
+            # rgb_model = torch.load(str(args.load_model),  map_location=torch.device('cpu')).module
+            # rgb_model.to('cpu')
+            load_weights_from_pretrained(args.load_model, rgb_model)
 
-        if args.load_model!= "False":
-            rgb_model.load_state_dict(torch.load(str(args.load_model)))
-            print("loaded",args.load_model)
+        # rgb_model = torch.nn.DataParallel(rgb_model)
 
         pytorch_total_params = sum(p.numel() for p in rgb_model.parameters() if p.requires_grad)
         print('pytorch_total_params', pytorch_total_params)
         print('num_channel:', num_channel, 'input_channnel:', input_channnel,'num_classes:', num_classes)
-        # rgb_model.cuda()
+        rgb_model.cuda()
 
         criterion = nn.NLLLoss(reduce=False)
         lr = float(args.lr)
         print(lr)
         optimizer = optim.Adam(rgb_model.parameters(), lr=lr)
-        lr_sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=8, verbose=True)
+        lr_sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.3, patience=10, verbose=True)
+
+        config_dict['lr'] = lr
+        config_dict['num_classes'] = num_classes
+        config_dict['dataset'] = args.dataset
+        config_dict['epochs'] = args.epoch
+        config_dict['num_summary_tokens'] = args.num_summary_tokens
+        config_dict['pretrained_model'] = args.load_model
+
+        wandb.init(
+            project=config.PROJECT_NAME,
+            config=config_dict
+        )
+
         run([(rgb_model, 0, dataloaders, optimizer, lr_sched, args.comp_info)], criterion, num_epochs=int(args.epoch))
 
 

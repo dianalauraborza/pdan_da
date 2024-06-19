@@ -35,7 +35,7 @@ class PDAN(nn.Module):
         self.summary = None
         self.stage1_bottleneck = torch.nn.Conv1d(in_channels=dim, out_channels=num_f_maps, kernel_size=1)
         if num_summary_tokens:
-            self.summarization_module = TokenSummarizationMHA(num_tokens=num_summary_tokens, dim=num_f_maps, num_heads=1)
+            self.summarization_module = TokenSummarizationMHA(num_tokens=num_summary_tokens, dim=num_f_maps, num_heads=4)
 
 
     def forward(self, x, mask):
