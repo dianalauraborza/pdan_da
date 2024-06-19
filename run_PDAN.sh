@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-export PATH=/Your/ENV/bin:$PATH
+#export PATH=/Your/ENV/bin:$PATH
+source activate actionformer
+cd /data/stars/user/dborza/work/pdan_da
 
 python train_PDAN.py \
 -dataset charades \
