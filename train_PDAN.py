@@ -27,7 +27,7 @@ parser.add_argument('-rgb_model_file', type=str)
 parser.add_argument('-flow_model_file', type=str)
 parser.add_argument('-gpu', type=str, default='4')
 parser.add_argument('-dataset', type=str, default='charades')
-parser.add_argument('-rgb_root', type=str, default='~/mynef/data/stars/user/rdai/PhD_work/cvpr2020/Charades_v1/charades_feat_rgb')
+parser.add_argument('-rgb_root', type=str, default=None)
 parser.add_argument('-flow_root', type=str, default='no_root')
 parser.add_argument('-type', type=str, default='original')
 parser.add_argument('-lr', type=str, default='0.1')
@@ -95,13 +95,13 @@ if args.dataset == 'charades':
         train_split = './data/charades.json'
         test_split = './data/charades.json'
     # print('load feature from:', args.rgb_root)
-    rgb_root = '/user/dborza/home/mynef/data/stars/user/rdai/PhD_work/cvpr2020/Charades_v1/charades_feat_rgb'
+    rgb_root = args.rgb_root#'/user/dborza/home/mynef/data/stars/user/rdai/PhD_work/cvpr2020/Charades_v1/charades_feat_rgb'
     skeleton_root = '/Path/to/charades_feat_pose'
     flow_root = '/Path/to/charades_feat_flow'
     rgb_of=[rgb_root,flow_root]
-    classes = 177#157
+    classes = 157
 
-
+print('rgb root is ', rgb_root)
 def load_data(train_split, val_split, root):
     # Load Data
     print('load data', root)
