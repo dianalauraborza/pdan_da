@@ -42,14 +42,14 @@ class PDAN(nn.Module):
         if self.summarization_module:
             r_x = self.stage1_bottleneck(x)
             self.summary = self.summarization_module(r_x)
-            print('summary shape: ', self.summary.shape)
+            # print('summary shape: ', self.summary.shape)
 
         out = self.stage1(x, mask, self.summary)
         outputs = out.unsqueeze(0)
         for s in self.stages:
             if self.summarization_module:
                 self.summary = self.summarization_module(out)
-                print('--- summary shape: ', self.summary.shape)
+                # print('--- summary shape: ', self.summary.shape)
             out = s(out * mask[:, 0:1, :], mask, self.summary)
             outputs = torch.cat((outputs, out.unsqueeze(0)), dim=0)
         return outputs
