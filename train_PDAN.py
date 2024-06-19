@@ -35,7 +35,7 @@ parser.add_argument('-epoch', type=str, default='50')
 parser.add_argument('-model', type=str, default='PDAN')
 parser.add_argument('-APtype', type=str, default='map')
 parser.add_argument('-randomseed', type=str, default='False')
-parser.add_argument('-load_model', type=str, default='/user/dborza/home/work/PDAN/data/PDAN_Charades_RGB')
+parser.add_argument('-load_model', type=str, default=False)
 parser.add_argument('-batch_size', type=str, default=6)
 parser.add_argument('-num_channel', type=str, default=128)
 parser.add_argument('-num_summary_tokens', type=int, default=0)
@@ -343,10 +343,10 @@ if __name__ == '__main__':
 
         # checkpoint = torch.load(str(args.load_model), map_location=torch.device('cpu'))
 
-        if args.load_model != "False":
-            # rgb_model = torch.load(str(args.load_model),  map_location=torch.device('cpu')).module
-            # rgb_model.to('cpu')
-            load_weights_from_pretrained(args.load_model, rgb_model)
+#        if args.load_model != "False":
+#            # rgb_model = torch.load(str(args.load_model),  map_location=torch.device('cpu')).module
+#            # rgb_model.to('cpu')
+#            load_weights_from_pretrained(args.load_model, rgb_model)
 
         # rgb_model = torch.nn.DataParallel(rgb_model)
 
