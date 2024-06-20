@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
 #export PATH=/Your/ENV/bin:$PATH
+
+#OAR -p gpu='YES' and dedicated='stars'
+#OAR -l /gpunum=1,walltime=10
+#OAR --name train_
 source activate actionformer
 cd /data/stars/user/dborza/work/pdan_da
 
@@ -16,7 +20,7 @@ python train_PDAN.py \
 -epoch 100 \
 -batch_size 32 \
 -lr 0.001 \
--num_summary_tokens 32 \
+-num_summary_tokens 0 \
 -rgb_root /data/stars/user/rdai/PhD_work/cvpr2020/Charades_v1/charades_feat_rgb
 # -run_mode debug
 
