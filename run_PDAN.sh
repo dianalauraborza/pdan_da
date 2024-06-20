@@ -17,10 +17,10 @@ python train_PDAN.py \
 -lr 0.0001 \
 -comp_info charades_PDAN \
 -APtype map \
--epoch 100 \
--batch_size 32 \
+-epoch 200 \
+-batch_size 12 \
 -lr 0.001 \
--num_summary_tokens 0 \
+-num_summary_tokens 32 \
 -rgb_root /data/stars/user/rdai/PhD_work/cvpr2020/Charades_v1/charades_feat_rgb
 # -run_mode debug
 

@@ -38,7 +38,7 @@ parser.add_argument('-randomseed', type=str, default='False')
 parser.add_argument('-load_model', type=str, default=False)
 parser.add_argument('-batch_size', type=str, default=6)
 parser.add_argument('-num_channel', type=str, default=128)
-parser.add_argument('-num_summary_tokens', type=int, default=0)
+parser.add_argument('-num_summary_tokens', type=int, default=10)
 parser.add_argument('-run_mode', type=str, default='False')
 parser.add_argument('-feat', type=str, default='False')
 
@@ -102,6 +102,7 @@ if args.dataset == 'charades':
     classes = 157
 
 print('rgb root is ', rgb_root)
+
 def load_data(train_split, val_split, root):
     # Load Data
     print('load data', root)
@@ -128,7 +129,6 @@ def load_data(train_split, val_split, root):
 
     dataloaders = {'train': dataloader, 'val': val_dataloader}
     datasets = {'train': dataset, 'val': val_dataset}
-
 
     return dataloaders, datasets
 

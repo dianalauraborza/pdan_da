@@ -17,12 +17,12 @@ class TokenSummarizationMHA(nn.Module):
         self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=num_heads, dropout=dropout, batch_first=True)
         self.tokens = nn.Parameter(torch.randn(1, self.num_tokens, self.dim) * 0.02)
 
-    def forward(self, inputs):
-        inputs = torch.permute(inputs, (0, 2, 1)) # permute from (dim, T) to (T, dim)
-        bs, hw, d = inputs.shape
+    def forward(self, v):
+        v = torch.permute(v, (0, 2, 1)) # permute from (dim, T) to (T, dim)
+        bs, t, d = v.shape
         tokens = self.tokens.expand(bs, -1, -1)
-        attn_output, _ = self.attn(query=tokens, key=inputs, value=inputs)
-        attn_output = attn_output[0:1]
+        attn_output, _ = self.attn(query=tokens, key=v, value=v)
+        # attn_output = attn_output[0:1]
         return attn_output
 
 
@@ -143,10 +143,11 @@ class DAL(nn.Module):
                                padded_x[:, :, :, 0 + 2 * self.dilated].unsqueeze(3)), dim=3)  # dilated
             # padded_x: bs, dim, unfold, ks
             bs, dim, unfold_t, ks = padded_x.shape
+            summary_expanded = summary.unsqueeze(2).repeat(1, 1, unfold_t, 1)
+            summary_expanded = summary_expanded.view(bs*unfold_t, -1, summary.shape[-1])
             padded_x = padded_x.view(bs*unfold_t, dim, ks)
             padded_x = torch.permute(padded_x, (0, 2, 1))
-            summary_expanded = summary.expand(padded_x.shape[0], -1, -1)
-
+           
             padded_x, _ = self.cross_attention(query=padded_x, key=summary_expanded, value=summary_expanded)
             padded_x = padded_x.permute((0, 2, 1))
             k_out = self.key_conv(padded_x)
