@@ -15,7 +15,7 @@ class TokenSummarizationMHA(nn.Module):
         self.dropout = dropout
         self.dim = dim
         self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=num_heads, dropout=dropout, batch_first=True)
-        self.queries = nn.Parameter(torch.randn(1, self.num_tokens, self.dim) * 0.02)
+        self.tokens = nn.Parameter(torch.randn(1, self.num_tokens, self.dim) * 0.02)
 
 
     def forward(self, v):
@@ -24,7 +24,7 @@ class TokenSummarizationMHA(nn.Module):
         tokens = self.tokens.expand(bs, -1, -1)
         attn_output, _ = self.attn(query=tokens, key=v, value=v)
         # attn_output = attn_output[0:1]
-        attn_output = attn_output + v
+        #attn_output = attn_output + v
         return attn_output
 
 class PDAN(nn.Module):
