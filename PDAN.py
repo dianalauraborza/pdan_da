@@ -26,45 +26,43 @@ class TokenSummarizationMHA(nn.Module):
 
         return attn_output
 
-class PDAN(nn.Module):
-    def __init__(self, num_stages=1, num_layers=5, num_f_maps=512, dim=1024, num_classes=157, num_summary_tokens=10):
+class PDAN(nn.Module):#stages
+    def __init__(self, num_stages=1, num_layers=5, num_f_maps=512, dim=1024, num_classes=157, num_summary_tokens = 10):
         super(PDAN, self).__init__()
-        self.stage1 = SSPDAN(num_layers, num_f_maps, dim, num_classes)
+        self.stage1 = SSPDAN(num_layers, num_f_maps, dim, num_classes, num_summary_tokens)
         self.stages = nn.ModuleList([copy.deepcopy(SSPDAN(num_layers, num_f_maps, num_classes, num_classes)) for s in range(num_stages-1)])
-        self.summarization_module = None
-        self.summary = None
-        self.stage1_bottleneck = torch.nn.Conv1d(in_channels=dim, out_channels=num_f_maps, kernel_size=1)
-        if num_summary_tokens:
-            self.summarization_module = TokenSummarizationMHA(num_tokens=num_summary_tokens, dim=num_f_maps, num_heads=4)
+
 
 
     def forward(self, x, mask):
-        if self.summarization_module:
-            r_x = self.stage1_bottleneck(x)
-            self.summary = self.summarization_module(r_x)
-            # print('summary shape: ', self.summary.shape)
 
-        out = self.stage1(x, mask, self.summary)
+        out = self.stage1(x, mask)
         outputs = out.unsqueeze(0)
         for s in self.stages:
             if self.summarization_module:
                 self.summary = self.summarization_module(out)
-                # print('--- summary shape: ', self.summary.shape)
+                print('--- summary shape: ', self.summary.shape)
             out = s(out * mask[:, 0:1, :], mask, self.summary)
             outputs = torch.cat((outputs, out.unsqueeze(0)), dim=0)
         return outputs
 
 class SSPDAN(nn.Module):
-    def __init__(self, num_layers, num_f_maps, dim, num_classes):
+    def __init__(self, num_layers, num_f_maps, dim, num_classes, num_summary_tokens= 10):
         super(SSPDAN, self).__init__()
         self.conv_1x1 = nn.Conv1d(dim, num_f_maps, 1)
         self.layers = nn.ModuleList([copy.deepcopy(PDAN_Block(2 ** i, num_f_maps, num_f_maps)) for i in range(num_layers)])
         self.conv_out = nn.Conv1d(num_f_maps, num_classes, 1)
+        self.summary = None
+        if num_summary_tokens:
+            self.summarization_module = TokenSummarizationMHA(num_tokens=num_summary_tokens, dim=num_f_maps, num_heads=4)
 
-    def forward(self, x, mask, summary=None):
+    def forward(self, x, mask):
         out = self.conv_1x1(x)
+
         for layer in self.layers:
-            out = layer(out, mask, summary)
+            if self.summarization_module:
+                self.summary = self.summarization_module(out)
+            out = layer(out, mask, self.summary)
         out = self.conv_out(out) * mask[:, 0:1, :]
         return out
 

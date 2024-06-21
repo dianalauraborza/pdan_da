@@ -237,7 +237,7 @@ def train_step(model, gpu, optimizer, dataloader, epoch):
     apm.reset()
 
     epoch_loss = tot_loss / num_iter
-
+    print('Epoch_loss_train = ', epoch_loss, ',  ', 'tot_loss = ', tot_loss, ',  ', 'num_iter = ', num_iter)
     last_lr = optimizer.param_groups[0]['lr']
 
     return train_map, epoch_loss, last_lr
@@ -270,6 +270,7 @@ def val_step(model, gpu, dataloader, epoch):
         full_probs[other[0][0]] = probs.data.cpu().numpy().T
 
     epoch_loss = tot_loss / num_iter
+    print('Epoch_loss_val = ', epoch_loss, ',  ', 'tot_loss = ', tot_loss, ',  ', 'num_iter = ', num_iter)
 
     val_map = torch.sum(100 * apm.value()) / torch.nonzero(100 * apm.value()).size()[0]
     print('val-map:', val_map)
