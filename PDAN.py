@@ -15,16 +15,15 @@ class TokenSummarizationMHA(nn.Module):
         self.dropout = dropout
         self.dim = dim
         self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=num_heads, dropout=dropout, batch_first=True)
-        self.tokens = nn.Parameter(torch.randn(1, self.num_tokens, self.dim) * 0.02)
+        self.queries = nn.Parameter(torch.randn(1, self.num_tokens, self.dim) * 0.02)
 
-    def forward(self, inputs):
-        inputs = torch.permute(inputs, (0, 2, 1)) # permute from (dim, T) to (T, dim)
-        bs, hw, d = inputs.shape
-        tokens = self.tokens.expand(bs, -1, -1)
-        attn_output, _ = self.attn(query=tokens, key=inputs, value=inputs)
+    def forward(self, V):
+        V = torch.permute(V, (0, 2, 1)) # permute from (dim, T) to (T, dim)
+        bs, hw, d = V.shape #batch, time, dimentionality
+        tokens = self.queries.expand(bs, -1, -1) #We are duplicating the tokens
+        attn_output, _ = self.attn(query=tokens, key=V, value=V)
         attn_output = attn_output[0:1]
         return attn_output
-
 
 class PDAN(nn.Module):
     def __init__(self, num_stages=1, num_layers=5, num_f_maps=512, dim=1024, num_classes=157, num_summary_tokens=10):
@@ -99,7 +98,7 @@ class DAL(nn.Module):
         self.query_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
         self.value_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
 
-        self.cross_attention = nn.MultiheadAttention(out_channels, num_heads_cross_attention, bias=bias, batch_first=True)
+        self.cross_attention = nn.MultiheadAttention(out_channels, num_heads_cross_attention, bias=bias,batch_first=True)
 
         self.reset_parameters()
 

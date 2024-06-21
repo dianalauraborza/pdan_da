@@ -107,9 +107,9 @@ def load_data(train_split, val_split, root):
     print('load data', root)
     if len(train_split) > 0:
         if str(args.feat) == '2d':
-            dataset = Dataset(train_split, 'testing', root, batch_size, classes, int(args.pool_step))
+            dataset = Dataset(train_split, 'training', root, batch_size, classes, int(args.pool_step))
         else:
-            dataset = Dataset(train_split, 'testing', root, batch_size, classes)
+            dataset = Dataset(train_split, 'training', root, batch_size, classes)
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=8,
                                                  pin_memory=True, collate_fn=collate_fn)
         dataloader.root = root
@@ -118,19 +118,17 @@ def load_data(train_split, val_split, root):
         dataset = None
         dataloader = None
 
-    # if str(args.feat) == '2d':
-    #     val_dataset = Dataset(val_split, 'testing', root, batch_size, classes, int(args.pool_step))
-    # else:
-    #     val_dataset = Dataset(val_split, 'testing', root, batch_size, classes)
-    # val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=True, num_workers=2,
-    #                                              pin_memory=True, collate_fn=collate_fn)
-    # val_dataloader.root = root
+    if str(args.feat) == '2d':
+        val_dataset = Dataset(val_split, 'testing', root, batch_size, classes, int(args.pool_step))
+    else:
+        val_dataset = Dataset(val_split, 'testing', root, batch_size, classes)
+    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=True, num_workers=2,
+                                                 pin_memory=True, collate_fn=collate_fn)
+    val_dataloader.root = root
 
-    # dataloaders = {'train': dataloader, 'val': val_dataloader}
-    # datasets = {'train': dataset, 'val': val_dataset}
+    dataloaders = {'train': dataloader, 'val': val_dataloader}
+    datasets = {'train': dataset, 'val': val_dataset}
 
-    dataloaders = {'train': dataloader, 'val': dataloader}
-    datasets = {'train': dataset, 'val': dataloader}
     return dataloaders, datasets
 
 
