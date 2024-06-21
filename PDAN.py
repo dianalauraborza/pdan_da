@@ -72,7 +72,7 @@ class SSPDAN(nn.Module):
 class PDAN_Block(nn.Module):
     def __init__(self, dilation, in_channels, out_channels):
         super(PDAN_Block, self).__init__()
-        self.conv_attention=DAL(in_channels, out_channels, kernel_size=3, padding=dilation, dilated=dilation)
+        self.conv_attention=DAL(in_channels, out_channels, kernel_size=3, padding=dilation, dilated=dilation, Cross_A = True)
         self.conv_1x1 = nn.Conv1d(out_channels, out_channels, 1)
         self.dropout = nn.Dropout()
 
@@ -84,7 +84,7 @@ class PDAN_Block(nn.Module):
 
 class DAL(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, dilated=1, groups=1, bias=False,
-                 num_heads_cross_attention=1):
+                 num_heads_cross_attention=1, Cross_A = True):
         super(DAL, self).__init__()
         self.out_channels = out_channels
 
@@ -93,6 +93,7 @@ class DAL(nn.Module):
         self.padding = padding
         self.groups = groups
         self.dilated = dilated
+        self.Cross_A = Cross_A
         assert self.out_channels % self.groups == 0, "out_channels should be divided by groups. (example: out_channels: 40, groups: 4)"
         self.rel_t = nn.Parameter(torch.randn(out_channels, 1, kernel_size), requires_grad=True)
         self.key_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
@@ -148,11 +149,12 @@ class DAL(nn.Module):
             padded_x = padded_x.view(bs*unfold_t, dim, ks)
             padded_x = torch.permute(padded_x, (0, 2, 1))
 
-            skip = padded_x
-            padded_x, _ = self.cross_attention(query=padded_x, key=summary_expanded, value=summary_expanded)
-            padded_x += skip
+            #skip = padded_x
+            if self.Cross_A == True:
+                padded_x, _ = self.cross_attention(query=padded_x, key=summary_expanded, value=summary_expanded)
+                padded_x = padded_x.permute((0, 2, 1))
+            #padded_x += skip
 
-            padded_x = padded_x.permute((0, 2, 1))
 
             k_out = self.key_conv(padded_x)
             v_out = self.value_conv(padded_x)
