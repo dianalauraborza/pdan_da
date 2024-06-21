@@ -24,6 +24,7 @@ class TokenSummarizationMHA(nn.Module):
         tokens = self.tokens.expand(bs, -1, -1)
         attn_output, _ = self.attn(query=tokens, key=v, value=v)
         # attn_output = attn_output[0:1]
+        attn_output = attn_output + v
         return attn_output
 
 class PDAN(nn.Module):

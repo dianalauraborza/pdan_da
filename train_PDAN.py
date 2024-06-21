@@ -144,14 +144,16 @@ def run(models, criterion, num_epochs=50):
 
         probs = []
         for model, gpu, dataloader, optimizer, sched, model_file in models:
-            train_map, train_loss = train_step(model, gpu, optimizer, dataloader['train'], epoch)
+            train_map, train_loss, last_lr = train_step(model, gpu, optimizer, dataloader['train'], epoch)
             prob_val, val_loss, val_map = val_step(model, gpu, dataloader['val'], epoch)
+            lr_sched.step(val_loss)
             print('---->', train_map, train_map.numpy())
             wandb.log({
                 'train_map': train_map.numpy(),
                 'train_loss': train_loss,
                 'val_map': val_map.numpy(),
-                'val_loss': val_loss
+                'val_loss': val_loss,
+                'last_lr': last_lr
             })
 
             if best_map > val_map:
@@ -236,9 +238,9 @@ def train_step(model, gpu, optimizer, dataloader, epoch):
 
     epoch_loss = tot_loss / num_iter
 
+    last_lr = optimizer.param_groups[0]['lr']
 
-
-    return train_map, epoch_loss
+    return train_map, epoch_loss, last_lr
 
 
 def val_step(model, gpu, dataloader, epoch):

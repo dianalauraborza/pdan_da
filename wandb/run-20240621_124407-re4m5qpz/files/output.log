@@ -1,0 +1,22 @@
+Epoch 0/299
+----------
+Traceback (most recent call last):
+  File "/home/areka/pdan_da/train_PDAN.py", line 377, in <module>
+    run([(rgb_model, 0, dataloaders, optimizer, lr_sched, args.comp_info)], criterion, num_epochs=int(args.epoch))
+  File "/home/areka/pdan_da/train_PDAN.py", line 147, in run
+    train_map, train_loss, last_lr = train_step(model, gpu, optimizer, dataloader['train'], epoch)
+  File "/home/areka/pdan_da/train_PDAN.py", line 223, in train_step
+    outputs, loss, probs, err = run_network(model, data, gpu, epoch)
+  File "/home/areka/pdan_da/train_PDAN.py", line 195, in run_network
+    activation = model(inputs, mask_new)
+  File "/home/areka/miniconda3/envs/pdan_a/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1110, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/areka/pdan_da/PDAN.py", line 45, in forward
+    self.summary = self.summarization_module(r_x)
+  File "/home/areka/miniconda3/envs/pdan_a/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1110, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/areka/pdan_da/PDAN.py", line 24, in forward
+    tokens = self.tokens.expand(bs, -1, -1)
+  File "/home/areka/miniconda3/envs/pdan_a/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1185, in __getattr__
+    raise AttributeError("'{}' object has no attribute '{}'".format(
+AttributeError: 'TokenSummarizationMHA' object has no attribute 'tokens'
