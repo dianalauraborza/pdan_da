@@ -18,6 +18,7 @@ class TokenSummarizationMHA(nn.Module):
 
 
     def forward(self, v):
+        #print('Here I am printing the shape of the input: ', v.shape)
         v = torch.permute(v, (0, 2, 1)) # permute from (dim, T) to (T, dim)
         bs, t, d = v.shape
         tokens = self.tokens.expand(bs, -1, -1)
