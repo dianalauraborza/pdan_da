@@ -38,33 +38,50 @@ class PDAN(nn.Module):#stages
 
         out = self.stage1(x, mask)
         outputs = out.unsqueeze(0)
-        for s in self.stages:
-            if self.summarization_module:
-                self.summary = self.summarization_module(out)
-                print('--- summary shape: ', self.summary.shape)
-            out = s(out * mask[:, 0:1, :], mask, self.summary)
-            outputs = torch.cat((outputs, out.unsqueeze(0)), dim=0)
+        # for s in self.stages:
+        #     if self.summarization_module:
+        #         self.summary = self.summarization_module(out)
+        #         print('--- summary shape: ', self.summary.shape)
+        #     out = s(out * mask[:, 0:1, :], mask, self.summary)
+        #     outputs = torch.cat((outputs, out.unsqueeze(0)), dim=0)
         return outputs
 
 class SSPDAN(nn.Module):
     def __init__(self, num_layers, num_f_maps, dim, num_classes, num_summary_tokens= 10):
         super(SSPDAN, self).__init__()
         self.conv_1x1 = nn.Conv1d(dim, num_f_maps, 1)
-        self.layers = nn.ModuleList([copy.deepcopy(PDAN_Block(2 ** i, num_f_maps, num_f_maps)) for i in range(num_layers)])
+        self.layers0 = PDAN_Block(2, num_f_maps, num_f_maps)
+        self.layers1 = nn.ModuleList([copy.deepcopy(PDAN_Block(2 ** i, num_f_maps, num_f_maps)) for i in range(num_layers +1, num_layers -1)])
+        self.layers2 = PDAN_Block(2 ** num_layers, num_f_maps, num_f_maps)
         self.conv_out = nn.Conv1d(num_f_maps, num_classes, 1)
+        self.dropout = nn.Dropout()
         self.summary = None
         if num_summary_tokens:
             self.summarization_module = TokenSummarizationMHA(num_tokens=num_summary_tokens, dim=num_f_maps, num_heads=4)
 
     def forward(self, x, mask):
-        out = self.conv_1x1(x)
+        # out = self.conv_1x1(x)
+        # out2 = self.conv_1x1(x)
+        # if self.summarization_module:
+        #     self.summary = self.summarization_module(out)
+        # out = self.layers0(out, mask, self.summary)
+        # #out = self.dropout(out)
+        # for layer in self.layers1:
+        #     out = layer(out, mask)
+        #     if self.summarization_module:
+        #         self.summary = self.summarization_module(out)
+        #     #out2 = self.layers2(out, mask, self.summary)
+        # out = self.layers2(out, mask, self.summary)
+        # out = self.dropout(out)
+        # out = self.conv_out(out) * mask[:, 0:1, :]
+        # return out
 
-        for layer in self.layers:
-            if self.summarization_module:
-                self.summary = self.summarization_module(out)
-            out = layer(out, mask, self.summary)
-        out = self.conv_out(out) * mask[:, 0:1, :]
-        return out
+        # for layer in self.layers1:
+        #     if self.summarization_module:
+        #         self.summary = self.summarization_module(out)
+        #     out = layer(out, mask, self.summary)
+        # out = self.conv_out(out) * mask[:, 0:1, :]
+        # return out
 
 
 class PDAN_Block(nn.Module):

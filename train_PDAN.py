@@ -209,6 +209,8 @@ def run_network(model, data, gpu, epoch=0, baseline=False):
 
     return outputs_final, loss, probs_f, corr / tot
 
+# max norm for gradient clipping
+max_norm = 1.0
 
 def train_step(model, gpu, optimizer, dataloader, epoch):
     model.train(True)
@@ -226,6 +228,9 @@ def train_step(model, gpu, optimizer, dataloader, epoch):
         tot_loss += loss.data
 
         loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+
         optimizer.step()
     if args.APtype == 'wap':
         train_map = 100 * apm.value()
