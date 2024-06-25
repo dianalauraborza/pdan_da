@@ -57,13 +57,12 @@ class SSPDAN(nn.Module):
                                                               num_heads=4)
 
             self.cross_attention = nn.MultiheadAttention(num_f_maps, 4, bias=False,  batch_first=True)
-            self.layer_norm = nn.LayerNorm(normalized_shape= 512)
-
+           
             init.zeros_(self.cross_attention.in_proj_weight)
             if self.cross_attention.in_proj_bias is not None:
                 init.zeros_(self.cross_attention.in_proj_weights)
 
-    def forward(self, x, mask):
+    def forward_add_summary(self, x, mask):
         out = self.conv_1x1(x)
         for idx, layer in enumerate(self.layers):
             if self.summarization_module:
@@ -82,6 +81,25 @@ class SSPDAN(nn.Module):
         out = self.conv_out(out) * mask[:, 0:1, :]
         out = self.dropout(out)
 
+
+        return out
+
+    def forward(self, x, mask):
+        out = self.conv_1x1(x)
+        for idx, layer in enumerate(self.layers):
+            prev_input = out
+            out = layer(out, mask)
+
+            if self.summarization_module:
+                #  apply cross attention
+                summary = self.summarization_module(prev_input)
+                res = self.cross_attention(query=out.permute(0, 2, 1), key=summary, value=summary)[0]
+                res = self.layer_norm(res)
+                res = res.permute(0, 2, 1) + out
+                out = res
+
+        out = self.conv_out(out) * mask[:, 0:1, :]
+        out = self.dropout(out)
 
         return out
 
