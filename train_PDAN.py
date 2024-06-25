@@ -300,11 +300,11 @@ def load_weights_from_pretrained(old_model_path, new_model):
 def run_sweep():
     with wandb.init() as run:
         learning_rate = run.config.learning_rate
-        learning_rate_decay = run.config.learning_rate_decay
+        gamma = run.config.gamma
         num_epochs = run.config.epochs
 
         optimizer = optim.Adam(rgb_model.parameters(), lr=learning_rate, weight_decay=1e-6)  # weight_decay=1e-6
-        lr_sched = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=learning_rate_decay)
+        lr_sched = StepLR(optimizer, step_size=10, gamma=gamma)
         print('learning rate ', learning_rate)
         print('learning rate decay', learning_rate_decay)
 
@@ -395,13 +395,13 @@ if __name__ == '__main__':
             },
             "parameters": {
                 "lr": {
-                    "values": [0.001, 0.0005, 0.0001, 0.00005, 0.00001]
+                    "values": [0.001, 0.0005, 0.0001, 0.00005]
                 },
-                "lr_decay": {
-                    "values": [1, 0.1, 0.01, 0.001, 0.0001]
+                "gamma": {
+                    "values": [0.1, 0.5, 0.8]
                 },
                 "epochs": {
-                    "values": [100]
+                    "values": [1]
                 }
             }
         }
