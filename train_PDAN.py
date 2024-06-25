@@ -41,6 +41,13 @@ parser.add_argument('-num_channel', type=str, default=128)
 parser.add_argument('-num_summary_tokens', type=int, default=10)
 parser.add_argument('-run_mode', type=str, default='False')
 parser.add_argument('-feat', type=str, default='False')
+parser.add_argument('-normalization', type=str, default=None) # the normalization type that we should be using
+parser.add_argument('-summary_mode', type=str, default='end') # when to integrate the summary: end or per_layer
+parser.add_argument('-dropout', type=str, default=0.1) # whether to integrate dropout after pdan
+parser.add_argument('-lr_scheduler', type=str, default='step') # what type of lr scheduler to use
+# todo lr_scheduler params ....
+parser.add_argument('-cross_attention_init', type=str, default='zeros') # how to init the cross attention layers
+
 
 
 args = parser.parse_args()
@@ -146,7 +153,7 @@ def run(models, criterion, num_epochs=50):
         for model, gpu, dataloader, optimizer, sched, model_file in models:
             train_map, train_loss, last_lr = train_step(model, gpu, optimizer, dataloader['train'], epoch)
             prob_val, val_loss, val_map = val_step(model, gpu, dataloader['val'], epoch)
-            lr_sched.step(val_loss)
+            # lr_sched.step(val_loss)
             print('---->', train_map, train_map.numpy())
             wandb.log({
                 'train_map': train_map.numpy(),
@@ -338,7 +345,11 @@ if __name__ == '__main__':
             num_channel=512
             input_channnel=1024
             num_classes=classes
-            rgb_model = PDAN(stage, block, num_channel, input_channnel, num_classes, num_summary_tokens=int(args.num_summary_tokens))
+            rgb_model = PDAN(stage, block, num_channel, input_channnel, num_classes, num_summary_tokens=int(args.num_summary_tokens),
+                             cross_attention_init=args.cross_attention_init, norm_type=args.normalization,
+                             summary_mode=args.summary_mode
+                             )
+
             pytorch_total_params = sum(p.numel() for p in rgb_model.parameters() if p.requires_grad)
             print('pytorch_total_params', pytorch_total_params)
             #exit()
