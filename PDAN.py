@@ -57,8 +57,7 @@ class SSPDAN(nn.Module):
                                                               num_heads=4)
 
             self.cross_attention = nn.MultiheadAttention(num_f_maps, 4, bias=False,  batch_first=True)
-            self.layer_norm = nn.LayerNorm(normalized_shape= 512)
-
+           
             init.zeros_(self.cross_attention.in_proj_weight)
             if self.cross_attention.in_proj_bias is not None:
                 init.zeros_(self.cross_attention.in_proj_weights)
