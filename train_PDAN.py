@@ -299,7 +299,7 @@ def load_weights_from_pretrained(old_model_path, new_model):
 
 def run_sweep():
     with wandb.init() as run:
-        learning_rate = run.config.learning_rate
+        learning_rate = run.config.lr
         gamma = run.config.gamma
         num_epochs = run.config.epochs
 
