@@ -304,7 +304,7 @@ def run_sweep():
         num_epochs = wandb_run.config.epochs
 
         optimizer = optim.Adam(rgb_model.parameters(), lr=learning_rate, weight_decay=1e-6)  # weight_decay=1e-6
-        lr_sched = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=gamma)
+        lr_sched = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=gamma)
         print('learning rate ', learning_rate)
         print('learning rate decay', gamma)
 
@@ -401,7 +401,7 @@ if __name__ == '__main__':
                     "values": [0.1, 0.5, 0.8]
                 },
                 "epochs": {
-                    "values": [1]
+                    "values": [100]
                 }
             }
         }
