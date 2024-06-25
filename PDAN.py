@@ -49,7 +49,7 @@ class SSPDAN(nn.Module):
 
         self.summarization_module = None
         self.summary = None
-        self.dropout = nn.Dropout(p=0.4)
+        # self.dropout = nn.Dropout(p=0.4)
         self.stage1_bottleneck = torch.nn.Conv1d(in_channels=dim, out_channels=num_f_maps, kernel_size=1)
         if num_summary_tokens:
             self.num_summary_tokens = num_summary_tokens
@@ -62,7 +62,7 @@ class SSPDAN(nn.Module):
             if self.cross_attention.in_proj_bias is not None:
                 init.zeros_(self.cross_attention.in_proj_weights)
 
-    def forward_add_summary(self, x, mask):
+    def forward(self, x, mask):
         out = self.conv_1x1(x)
         for idx, layer in enumerate(self.layers):
             if self.summarization_module:
@@ -79,12 +79,12 @@ class SSPDAN(nn.Module):
         res = res.permute(0, 2, 1) + out
         out = res
         out = self.conv_out(out) * mask[:, 0:1, :]
-        out = self.dropout(out)
+        # out = self.dropout(out)
 
 
         return out
 
-    def forward(self, x, mask):
+    def forward__(self, x, mask):
         out = self.conv_1x1(x)
         for idx, layer in enumerate(self.layers):
             prev_input = out
@@ -99,7 +99,7 @@ class SSPDAN(nn.Module):
                 out = res
 
         out = self.conv_out(out) * mask[:, 0:1, :]
-        out = self.dropout(out)
+        # out = self.dropout(out)
 
         return out
 
@@ -109,12 +109,12 @@ class PDAN_Block(nn.Module):
         super(PDAN_Block, self).__init__()
         self.conv_attention=DAL(in_channels, out_channels, kernel_size=3, padding=dilation, dilated=dilation)
         self.conv_1x1 = nn.Conv1d(out_channels, out_channels, 1)
-        self.dropout = nn.Dropout(p=0.2)
+        # self.dropout = nn.Dropout(p=0.2)
 
     def forward(self, x, mask):
         out = F.relu(self.conv_attention(x))
         out = self.conv_1x1(out)
-        out = self.dropout(out)
+        # out = self.dropout(out)
         return (x + out) * mask[:, 0:1, :]
 
 class DAL(nn.Module):

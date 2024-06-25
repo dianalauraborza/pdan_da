@@ -146,7 +146,7 @@ def run(models, criterion, num_epochs=50):
         for model, gpu, dataloader, optimizer, sched, model_file in models:
             train_map, train_loss, last_lr = train_step(model, gpu, optimizer, dataloader['train'], epoch)
             prob_val, val_loss, val_map = val_step(model, gpu, dataloader['val'], epoch)
-            lr_sched.step(val_loss)
+            # lr_sched.step(val_loss)
             print('---->', train_map, train_map.numpy())
             wandb.log({
                 'train_map': train_map.numpy(),
@@ -297,6 +297,20 @@ def load_weights_from_pretrained(old_model_path, new_model):
 
     new_model.load_state_dict(new_state_dict)
 
+def run_sweep():
+    with wandb.init() as run:
+        learning_rate = run.config.learning_rate
+        learning_rate_decay = run.config.learning_rate_decay
+        num_epochs = run.config.epochs
+
+        optimizer = optim.Adam(rgb_model.parameters(), lr=learning_rate, weight_decay=1e-6)  # weight_decay=1e-6
+        lr_sched = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=learning_rate_decay)
+        print('learning rate ', learning_rate)
+        print('learning rate decay', learning_rate_decay)
+
+        # lr_sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.3, patience=10, verbose=True)
+        run([(rgb_model, 0, dataloaders, optimizer, lr_sched, args.comp_info)], criterion,
+            num_epochs=num_epochs)
 
 if __name__ == '__main__':
     print(str(args.model))
@@ -362,8 +376,8 @@ if __name__ == '__main__':
         criterion = nn.NLLLoss(reduce=False)
         lr = float(args.lr)
         print(lr)
-        optimizer = optim.Adam(rgb_model.parameters(), lr=lr, weight_decay=1e-6)#weight_decay=1e-6
-        lr_sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.3, patience=10, verbose=True)
+        # optimizer = optim.Adam(rgb_model.parameters(), lr=lr, weight_decay=1e-6)#weight_decay=1e-6
+        # lr_sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.3, patience=10, verbose=True)
 
         config_dict['lr'] = lr
         config_dict['num_classes'] = num_classes
@@ -372,11 +386,37 @@ if __name__ == '__main__':
         config_dict['num_summary_tokens'] = args.num_summary_tokens
         config_dict['pretrained_model'] = args.load_model
 
-        wandb.init(
-            project=config.PROJECT_NAME,
-            config=config_dict
-        )
+        sweep_config = {
+            "program": "train.py",
+            "method": "grid",
+            "metric": {
+                "name": "val_map",
+                "goal": "maximize"
+            },
+            "parameters": {
+                "lr": {
+                    "values": [0.001, 0.0005, 0.0001, 0.00005, 0.00001]
+                },
+                "lr_decay": {
+                    "values": [1, 0.1, 0.01, 0.001, 0.0001]
+                },
+                "epochs": {
+                    "values": [100]
+                }
+            }
+        }
 
-        run([(rgb_model, 0, dataloaders, optimizer, lr_sched, args.comp_info)], criterion, num_epochs=int(args.epoch))
+        # wandb.init(
+        #     project=config.PROJECT_NAME,
+        #     config=config_dict
+        # )
+        wandb.init(project=config.PROJECT_NAME)
+        sweep_id = wandb.sweep(sweep_config)
+
+        # Start a sweep agent
+        wandb.agent(sweep_id, function=run_sweep)
+
+        # run([(rgb_model, 0, dataloaders, optimizer, lr_sched, args.comp_info)], criterion,
+        #     num_epochs=int(args.epoch))
 
 
