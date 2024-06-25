@@ -298,10 +298,10 @@ def load_weights_from_pretrained(old_model_path, new_model):
     new_model.load_state_dict(new_state_dict)
 
 def run_sweep():
-    with wandb.init() as run:
-        learning_rate = run.config.lr
-        gamma = run.config.gamma
-        num_epochs = run.config.epochs
+    with wandb.init() as wandb_run:
+        learning_rate = wandb_run.config.lr
+        gamma = wandb_run.config.gamma
+        num_epochs = wandb_run.config.epochs
 
         optimizer = optim.Adam(rgb_model.parameters(), lr=learning_rate, weight_decay=1e-6)  # weight_decay=1e-6
         lr_sched = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=gamma)
