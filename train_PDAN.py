@@ -410,8 +410,8 @@ if __name__ == '__main__':
         #     project=config.PROJECT_NAME,
         #     config=config_dict
         # )
-        wandb.init(project=config.PROJECT_NAME)
-        sweep_id = wandb.sweep(sweep_config)
+        # wandb.init(project=config.PROJECT_NAME)
+        sweep_id = wandb.sweep(sweep_config,project=config.PROJECT_NAME)
 
         # Start a sweep agent
         wandb.agent(sweep_id, function=run_sweep)
