@@ -76,7 +76,7 @@ class SSPDAN(nn.Module):
         self.summary = self.summary / len(self.layers)
         #  apply cross attention
         res = self.cross_attention(query=out.permute(0, 2, 1), key=self.summary, value=self.summary)[0]
-        res = self.layer_norm(res)
+        #res = self.layer_norm(res)
         res = res.permute(0, 2, 1) + out
         out = res
         out = self.conv_out(out) * mask[:, 0:1, :]
@@ -113,7 +113,9 @@ class DAL(nn.Module):
         assert self.out_channels % self.groups == 0, "out_channels should be divided by groups. (example: out_channels: 40, groups: 4)"
         self.rel_t = nn.Parameter(torch.randn(out_channels, 1, kernel_size), requires_grad=True)
         self.key_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
-        self.query_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
+        #self.query_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
+        self.kernal_size = 2 * self.dilated + 1
+        self.query_conv = nn.Conv1d(in_channels, out_channels, kernel_size=self.kernal_size, bias=bias, padding = self.kernal_size//2)
         self.value_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
 
         self.reset_parameters()
