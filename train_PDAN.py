@@ -226,6 +226,9 @@ def train_step(model, gpu, optimizer, dataloader, epoch):
         tot_loss += loss.data
 
         loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
         optimizer.step()
     if args.APtype == 'wap':
         train_map = 100 * apm.value()
@@ -359,8 +362,8 @@ if __name__ == '__main__':
         criterion = nn.NLLLoss(reduce=False)
         lr = float(args.lr)
         print(lr)
-        optimizer = optim.Adam(rgb_model.parameters(), lr=lr)
-        lr_sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.3, patience=10, verbose=True)
+        optimizer = optim.Adam(rgb_model.parameters(), lr=lr, weight_decay=1e-4)#weight_decay=1e-6
+        lr_sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=8, verbose=True)
 
         config_dict['lr'] = lr
         config_dict['num_classes'] = num_classes

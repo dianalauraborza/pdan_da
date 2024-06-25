@@ -49,6 +49,7 @@ class SSPDAN(nn.Module):
 
         self.summarization_module = None
         self.summary = None
+        self.dropout = nn.Dropout(p=0.4)
         self.stage1_bottleneck = torch.nn.Conv1d(in_channels=dim, out_channels=num_f_maps, kernel_size=1)
         if num_summary_tokens:
             self.num_summary_tokens = num_summary_tokens
@@ -56,6 +57,7 @@ class SSPDAN(nn.Module):
                                                               num_heads=4)
 
             self.cross_attention = nn.MultiheadAttention(num_f_maps, 4, bias=False,  batch_first=True)
+            self.layer_norm = nn.LayerNorm(normalized_shape= 512)
 
             init.zeros_(self.cross_attention.in_proj_weight)
             if self.cross_attention.in_proj_bias is not None:
@@ -74,9 +76,12 @@ class SSPDAN(nn.Module):
         self.summary = self.summary / len(self.layers)
         #  apply cross attention
         res = self.cross_attention(query=out.permute(0, 2, 1), key=self.summary, value=self.summary)[0]
+        res = self.layer_norm(res)
         res = res.permute(0, 2, 1) + out
         out = res
         out = self.conv_out(out) * mask[:, 0:1, :]
+        out = self.dropout(out)
+
 
         return out
 
@@ -86,7 +91,7 @@ class PDAN_Block(nn.Module):
         super(PDAN_Block, self).__init__()
         self.conv_attention=DAL(in_channels, out_channels, kernel_size=3, padding=dilation, dilated=dilation)
         self.conv_1x1 = nn.Conv1d(out_channels, out_channels, 1)
-        self.dropout = nn.Dropout()
+        self.dropout = nn.Dropout(p=0.2)
 
     def forward(self, x, mask):
         out = F.relu(self.conv_attention(x))

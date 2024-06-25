@@ -12,8 +12,7 @@ python train_PDAN.py \
 -APtype map \
 -epoch 300 \
 -batch_size 12 \
--lr 0.001 \
--num_summary_tokens 75 \
+-num_summary_tokens 65 \
 -rgb_root /data/stars/user/rdai/PhD_work/cvpr2020/Charades_v1/charades_feat_rgb
 # -run_mode debug
 
