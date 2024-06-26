@@ -41,6 +41,7 @@ parser.add_argument('-num_channel', type=str, default=128)
 parser.add_argument('-num_summary_tokens', type=int, default=10)
 parser.add_argument('-run_mode', type=str, default='False')
 parser.add_argument('-feat', type=str, default='False')
+parser.add_argument('-cross_attention_init', type=str, default='zeros') # can be zeros, kaiming
 
 
 args = parser.parse_args()
@@ -146,7 +147,6 @@ def run(models, criterion, num_epochs=50):
         for model, gpu, dataloader, optimizer, sched, model_file in models:
             train_map, train_loss, last_lr = train_step(model, gpu, optimizer, dataloader['train'], epoch)
             prob_val, val_loss, val_map = val_step(model, gpu, dataloader['val'], epoch)
-            lr_sched.step(val_loss)
             print('---->', train_map, train_map.numpy())
             wandb.log({
                 'train_map': train_map.numpy(),
@@ -163,8 +163,8 @@ def run(models, criterion, num_epochs=50):
                 print(f'Saved weights to {weights_path}')
 
             probs.append(prob_val)
-            sched.step(val_loss)
-
+            # sched.step(val_loss)
+            sched.step(val_map.numpy())
 
 def eval_model(model, dataloader, baseline=False):
     results = {}
@@ -338,7 +338,8 @@ if __name__ == '__main__':
             num_channel=512
             input_channnel=1024
             num_classes=classes
-            rgb_model = PDAN(stage, block, num_channel, input_channnel, num_classes, num_summary_tokens=int(args.num_summary_tokens))
+            rgb_model = PDAN(stage, block, num_channel, input_channnel, num_classes,
+                             num_summary_tokens=int(args.num_summary_tokens))
             pytorch_total_params = sum(p.numel() for p in rgb_model.parameters() if p.requires_grad)
             print('pytorch_total_params', pytorch_total_params)
             #exit()
@@ -363,7 +364,9 @@ if __name__ == '__main__':
         lr = float(args.lr)
         print(lr)
         optimizer = optim.Adam(rgb_model.parameters(), lr=lr, weight_decay=1e-6)#weight_decay=1e-6
-        lr_sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.3, patience=10, verbose=True)
+        lr_sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.75, patience=10, verbose=True,
+                                                        min_lr=0.00001, mode='max',
+                                                        threshold=0.0003)
 
         config_dict['lr'] = lr
         config_dict['num_classes'] = num_classes
@@ -371,6 +374,7 @@ if __name__ == '__main__':
         config_dict['epochs'] = args.epoch
         config_dict['num_summary_tokens'] = args.num_summary_tokens
         config_dict['pretrained_model'] = args.load_model
+        config_dict['cross_attention_init'] = args.cross_attention_init
 
         wandb.init(
             project=config.PROJECT_NAME,
