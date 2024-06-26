@@ -87,8 +87,8 @@ class SSPDAN(nn.Module):
 
         self.summary = self.summary / len(self.layers)
         #  apply cross attention
-        queries = self.positional_encoding1(out.permute(0, 2, 1))
-        keys_values = self.positional_encoding2(self.summary)
+        queries = self.pos_encoding_query(out.permute(0, 2, 1))
+        keys_values = self.pos_encoding_key_val(self.summary)
         res = self.cross_attention(query=queries, key=keys_values, value=keys_values)[0]
         #res = self.layer_norm(res)
         res = res.permute(0, 2, 1) + out
