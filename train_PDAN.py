@@ -228,7 +228,7 @@ def train_step(model, gpu, optimizer, dataloader, epoch):
 
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
         optimizer.step()
     if args.APtype == 'wap':
