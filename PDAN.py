@@ -51,7 +51,7 @@ class SSPDAN(nn.Module):
 
         self.summarization_module = None
         self.summary = None
-        self.dropout = nn.Dropout(p=0.2)
+        self.dropout = nn.Dropout(p=0.4)
         self.stage1_bottleneck = torch.nn.Conv1d(in_channels=dim, out_channels=num_f_maps, kernel_size=1)
         if num_summary_tokens:
             self.num_summary_tokens = num_summary_tokens
