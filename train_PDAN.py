@@ -209,6 +209,8 @@ def run_network(model, data, gpu, epoch=0, baseline=False):
 
     return outputs_final, loss, probs_f, corr / tot
 
+# max norm for gradient clipping
+max_norm = 1.0
 
 def train_step(model, gpu, optimizer, dataloader, epoch):
     model.train(True)
@@ -226,6 +228,9 @@ def train_step(model, gpu, optimizer, dataloader, epoch):
         tot_loss += loss.data
 
         loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+
         optimizer.step()
     if args.APtype == 'wap':
         train_map = 100 * apm.value()
@@ -237,7 +242,7 @@ def train_step(model, gpu, optimizer, dataloader, epoch):
     apm.reset()
 
     epoch_loss = tot_loss / num_iter
-
+    print('Epoch_loss_train = ', epoch_loss, ',  ', 'tot_loss = ', tot_loss, ',  ', 'num_iter = ', num_iter)
     last_lr = optimizer.param_groups[0]['lr']
 
     return train_map, epoch_loss, last_lr
@@ -270,6 +275,7 @@ def val_step(model, gpu, dataloader, epoch):
         full_probs[other[0][0]] = probs.data.cpu().numpy().T
 
     epoch_loss = tot_loss / num_iter
+    print('Epoch_loss_val = ', epoch_loss, ',  ', 'tot_loss = ', tot_loss, ',  ', 'num_iter = ', num_iter)
 
     val_map = torch.sum(100 * apm.value()) / torch.nonzero(100 * apm.value()).size()[0]
     print('val-map:', val_map)
