@@ -57,7 +57,7 @@ class SSPDAN(nn.Module):
             self.num_summary_tokens = num_summary_tokens
             self.summarization_module = TokenSummarizationMHA(num_tokens=num_summary_tokens, dim=num_f_maps,
                                                               num_heads=4)
-
+            self.layer_norm = torch.nn.LayerNorm(num_f_maps)
             self.cross_attention = nn.MultiheadAttention(num_f_maps, 4, bias=False,  batch_first=True)
             self.pos_encoding_query = PositionalEncoding(num_f_maps)
             self.pos_encoding_key_val = PositionalEncoding(num_f_maps)
@@ -90,7 +90,7 @@ class SSPDAN(nn.Module):
         queries = self.pos_encoding_query(out.permute(0, 2, 1))
         keys_values = self.pos_encoding_key_val(self.summary)
         res = self.cross_attention(query=queries, key=keys_values, value=keys_values)[0]
-        res = self.layer_norm(res)
+        # res = self.layer_norm(res)
         res = res.permute(0, 2, 1) + out
         out = res
         out = self.conv_out(out) * mask[:, 0:1, :]
