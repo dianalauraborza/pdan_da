@@ -164,7 +164,8 @@ def run(models, criterion, num_epochs=50):
 
             probs.append(prob_val)
             # sched.step(val_loss)
-            sched.step(val_map.numpy())
+            # sched.step(val_map.numpy())
+            sched.step()
 
 def eval_model(model, dataloader, baseline=False):
     results = {}
@@ -364,9 +365,11 @@ if __name__ == '__main__':
         lr = float(args.lr)
         print(lr)
         optimizer = optim.Adam(rgb_model.parameters(), lr=lr, weight_decay=1e-6)#weight_decay=1e-6
-        lr_sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.75, patience=10, verbose=True,
-                                                        min_lr=0.00001, mode='max',
-                                                        threshold=0.0003)
+        # lr_sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.75, patience=10, verbose=True,
+        #                                                 min_lr=0.00001, mode='max',
+        #                                                 threshold=0.0003)
+
+        lr_sched = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
         config_dict['lr'] = lr
         config_dict['num_classes'] = num_classes
