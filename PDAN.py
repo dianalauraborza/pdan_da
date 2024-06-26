@@ -75,7 +75,7 @@ class SSPDAN(nn.Module):
 
 
 
-    def forward(self, x, mask):
+    def forward__(self, x, mask):
         out = self.conv_1x1(x)
         for idx, layer in enumerate(self.layers):
             if self.summarization_module:
@@ -90,14 +90,14 @@ class SSPDAN(nn.Module):
         queries = self.pos_encoding_query(out.permute(0, 2, 1))
         keys_values = self.pos_encoding_key_val(self.summary)
         res = self.cross_attention(query=queries, key=keys_values, value=keys_values)[0]
-        #res = self.layer_norm(res)
+        res = self.layer_norm(res)
         res = res.permute(0, 2, 1) + out
         out = res
         out = self.conv_out(out) * mask[:, 0:1, :]
 
         return out
 
-    def forward_(self, x, mask):
+    def forward(self, x, mask):
         out = self.conv_1x1(x)
         for idx, layer in enumerate(self.layers):
             prev_input = out
@@ -106,7 +106,9 @@ class SSPDAN(nn.Module):
             if self.summarization_module:
                 #  apply cross attention
                 summary = self.summarization_module(prev_input)
-                res = self.cross_attention(query=out.permute(0, 2, 1), key=summary, value=summary)[0]
+                queries = self.pos_encoding_query(out.permute(0, 2, 1))
+                keys_values = self.pos_encoding_key_val(summary)
+                res = self.cross_attention(query=queries, key=keys_values, value=keys_values)[0]
                 res = self.layer_norm(res)
                 res = res.permute(0, 2, 1) + out
                 out = res
