@@ -369,7 +369,8 @@ if __name__ == '__main__':
         #                                                 min_lr=0.00001, mode='max',
         #                                                 threshold=0.0003)
 
-        lr_sched = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+        # lr_sched = optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
+        lr_sched = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[4, 10, 20], gamma=0.1)
 
         config_dict['lr'] = lr
         config_dict['num_classes'] = num_classes
