@@ -58,7 +58,8 @@ class SSPDAN(nn.Module):
                                                               num_heads=4)
 
             self.cross_attention = nn.MultiheadAttention(num_f_maps, 4, bias=False,  batch_first=True)
-
+            self.pos_encoding_query = PositionalEncoding(num_f_maps)
+            self.pos_encoding_key_val = PositionalEncoding(num_f_maps)
         self.init_cross_attention(cross_attention_init)
 
 
@@ -85,7 +86,9 @@ class SSPDAN(nn.Module):
 
         self.summary = self.summary / len(self.layers)
         #  apply cross attention
-        res = self.cross_attention(query=out.permute(0, 2, 1), key=self.summary, value=self.summary)[0]
+        queries = self.positional_encoding1(out.permute(0, 2, 1))
+        keys_values = self.positional_encoding2(self.summary)
+        res = self.cross_attention(query=queries, key=keys_values, value=keys_values)[0]
         #res = self.layer_norm(res)
         res = res.permute(0, 2, 1) + out
         out = res
@@ -123,6 +126,21 @@ class PDAN_Block(nn.Module):
         out = F.relu(self.conv_attention(x))
         out = self.conv_1x1(out)
         return (x + out) * mask[:, 0:1, :]
+
+
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model, max_len=500):
+        super().__init__()
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        return x + self.pe[:x.size(0), :]
 
 class DAL(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, dilated=1, groups=1, bias=False,
