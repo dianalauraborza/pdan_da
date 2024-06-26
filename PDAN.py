@@ -29,7 +29,7 @@ class PDAN(nn.Module):
     def __init__(self, num_stages=1, num_layers=5, num_f_maps=512, dim=1024, num_classes=157, num_summary_tokens=10,
                         cross_attention_init='zeros'):
         super(PDAN, self).__init__()
-        self.stage1 = SSPDAN(num_layers, num_f_maps, dim, num_classes, num_summary_tokens)
+        self.stage1 = SSPDAN(num_layers, num_f_maps, dim, num_classes, num_summary_tokens, cross_attention_init)
         self.stages = nn.ModuleList([copy.deepcopy(SSPDAN(num_layers, num_f_maps, num_classes, num_classes)) for s in range(num_stages-1)])
 
 
@@ -73,7 +73,7 @@ class SSPDAN(nn.Module):
 
 
 
-    def forward_add_summary(self, x, mask):
+    def forward(self, x, mask):
         out = self.conv_1x1(x)
         for idx, layer in enumerate(self.layers):
             if self.summarization_module:
@@ -93,7 +93,7 @@ class SSPDAN(nn.Module):
 
         return out
 
-    def forward(self, x, mask):
+    def forward_(self, x, mask):
         out = self.conv_1x1(x)
         for idx, layer in enumerate(self.layers):
             prev_input = out
