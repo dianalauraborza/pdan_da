@@ -26,7 +26,8 @@ class TokenSummarizationMHA(nn.Module):
         return attn_output
 
 class PDAN(nn.Module):
-    def __init__(self, num_stages=1, num_layers=5, num_f_maps=512, dim=1024, num_classes=157, num_summary_tokens=10):
+    def __init__(self, num_stages=1, num_layers=5, num_f_maps=512, dim=1024, num_classes=157, num_summary_tokens=10,
+                        cross_attention_init='zeros'):
         super(PDAN, self).__init__()
         self.stage1 = SSPDAN(num_layers, num_f_maps, dim, num_classes, num_summary_tokens)
         self.stages = nn.ModuleList([copy.deepcopy(SSPDAN(num_layers, num_f_maps, num_classes, num_classes)) for s in range(num_stages-1)])
@@ -41,7 +42,7 @@ class PDAN(nn.Module):
         return outputs
 
 class SSPDAN(nn.Module):
-    def __init__(self, num_layers, num_f_maps, dim, num_classes, num_summary_tokens=10):
+    def __init__(self, num_layers, num_f_maps, dim, num_classes, num_summary_tokens, cross_attention_init):
         super(SSPDAN, self).__init__()
         self.conv_1x1 = nn.Conv1d(dim, num_f_maps, 1)
         self.layers = nn.ModuleList([copy.deepcopy(PDAN_Block(2 ** i, num_f_maps, num_f_maps)) for i in range(num_layers)])
@@ -49,7 +50,7 @@ class SSPDAN(nn.Module):
 
         self.summarization_module = None
         self.summary = None
-        # self.dropout = nn.Dropout(p=0.4)
+
         self.stage1_bottleneck = torch.nn.Conv1d(in_channels=dim, out_channels=num_f_maps, kernel_size=1)
         if num_summary_tokens:
             self.num_summary_tokens = num_summary_tokens
@@ -57,12 +58,22 @@ class SSPDAN(nn.Module):
                                                               num_heads=4)
 
             self.cross_attention = nn.MultiheadAttention(num_f_maps, 4, bias=False,  batch_first=True)
-           
-            init.zeros_(self.cross_attention.in_proj_weight)
-            if self.cross_attention.in_proj_bias is not None:
-                init.zeros_(self.cross_attention.in_proj_weights)
 
-    def forward(self, x, mask):
+        self.init_cross_attention(cross_attention_init)
+
+
+    def init_cross_attention(self, mode):
+        if mode == 'zeros':
+            init.zeros_(self.cross_attention.in_proj_weight)
+        if mode == 'kaiming':
+            init.kaiming_normal(self.cross_attention.in_proj_weight, mode='fan_out')
+
+        if self.cross_attention.in_proj_bias is not None:
+            init.zeros_(self.cross_attention.in_proj_weights)
+
+
+
+    def forward_add_summary(self, x, mask):
         out = self.conv_1x1(x)
         for idx, layer in enumerate(self.layers):
             if self.summarization_module:
@@ -79,12 +90,10 @@ class SSPDAN(nn.Module):
         res = res.permute(0, 2, 1) + out
         out = res
         out = self.conv_out(out) * mask[:, 0:1, :]
-        # out = self.dropout(out)
-
 
         return out
 
-    def forward__(self, x, mask):
+    def forward(self, x, mask):
         out = self.conv_1x1(x)
         for idx, layer in enumerate(self.layers):
             prev_input = out
@@ -99,7 +108,7 @@ class SSPDAN(nn.Module):
                 out = res
 
         out = self.conv_out(out) * mask[:, 0:1, :]
-        # out = self.dropout(out)
+
 
         return out
 
@@ -109,12 +118,10 @@ class PDAN_Block(nn.Module):
         super(PDAN_Block, self).__init__()
         self.conv_attention=DAL(in_channels, out_channels, kernel_size=3, padding=dilation, dilated=dilation)
         self.conv_1x1 = nn.Conv1d(out_channels, out_channels, 1)
-        # self.dropout = nn.Dropout(p=0.2)
 
     def forward(self, x, mask):
         out = F.relu(self.conv_attention(x))
         out = self.conv_1x1(out)
-        # out = self.dropout(out)
         return (x + out) * mask[:, 0:1, :]
 
 class DAL(nn.Module):
@@ -131,9 +138,9 @@ class DAL(nn.Module):
         assert self.out_channels % self.groups == 0, "out_channels should be divided by groups. (example: out_channels: 40, groups: 4)"
         self.rel_t = nn.Parameter(torch.randn(out_channels, 1, kernel_size), requires_grad=True)
         self.key_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
-        #self.query_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
-        self.kernal_size = 2 * self.dilated + 1
-        self.query_conv = nn.Conv1d(in_channels, out_channels, kernel_size=self.kernal_size, bias=bias, padding = self.kernal_size//2)
+        self.query_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
+        # self.kernal_size = 2 * self.dilated + 1
+        # self.query_conv = nn.Conv1d(in_channels, out_channels, kernel_size=self.kernal_size, bias=bias, padding = self.kernal_size//2)
         self.value_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
 
         self.reset_parameters()
